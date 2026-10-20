@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>整页翻译</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="hd">
+    <img class="logo" src="icons/icon48.png" alt="">
+    <div class="hd-txt">
+      <h1>整页翻译</h1>
+      <p id="subtitle">把当前网页整页译成你指定的语言</p>
+    </div>
+  </header>
+
+  <main class="main">
+    <label class="field">
+      <span class="lbl">目标语言</span>
+      <select id="target"></select>
+    </label>
+
+    <label class="field">
+      <span class="lbl">翻译引擎</span>
+      <select id="provider"></select>
+    </label>
+
+    <button id="btn-translate" class="btn btn-primary">
+      <span class="btn-txt">翻译此页</span>
+    </button>
+    <button id="btn-restore" class="btn btn-ghost" disabled>还原原文</button>
+
+    <div id="progress" class="progress" hidden>
+      <div class="progress-bar"><i id="bar"></i></div>
+      <span id="progress-txt">准备中…</span>
+    </div>
+
+    <div id="notice" class="notice" hidden></div>
+  </main>
+
+  <footer class="ft">
+    <label class="switch">
+      <input type="checkbox" id="auto">
+      <span>打开网页时自动翻译</span>
+    </label>
+    <div class="tip">快捷键 <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> 翻译 / 还原</div>
+  </footer>
+
+  <script src="shared.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# 构建产物（由 python build.py 生成，不入库）
+dist/
+
+# 测试运行时生成的截图
+test/*.png
+test/*.log
+
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
