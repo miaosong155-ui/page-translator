@@ -26,7 +26,7 @@ An open-source browser extension that translates the whole page in place — no 
 只需要 Python 3（**零第三方依赖**，标准库即可）：
 
 ```bash
-git clone https://github.com/<你的用户名>/page-translator.git
+git clone https://github.com/miaosong155-ui/page-translator.git
 cd page-translator
 python build.py
 ```
