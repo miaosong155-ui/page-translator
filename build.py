@@ -180,11 +180,24 @@ def assemble(target, manifest_name):
 def zip_dir(folder, zip_path):
     if os.path.exists(zip_path):
         os.remove(zip_path)
+
+    # 固定时间戳 + 固定遍历顺序，保证「相同源码 -> 相同字节」。
+    # 否则 zip 会把源文件的 mtime 写进去，本地和 CI 构建出的包哈希不一致，
+    # SHA256SUMS 就失去了校验意义。
+    fixed_time = (1980, 1, 1, 0, 0, 0)
+
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        for base, _dirs, files in os.walk(folder):
-            for f in files:
+        for base, dirs, files in os.walk(folder):
+            dirs.sort()
+            for f in sorted(files):
                 full = os.path.join(base, f)
-                z.write(full, os.path.relpath(full, folder).replace("\\", "/"))
+                arc = os.path.relpath(full, folder).replace("\\", "/")
+                info = zipfile.ZipInfo(arc, date_time=fixed_time)
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o644 << 16
+                with open(full, "rb") as fh:
+                    z.writestr(info, fh.read())
+
     print("  %-8s -> %s (%.1f KB)" % ("zip", os.path.relpath(zip_path, ROOT), os.path.getsize(zip_path) / 1024))
 
 
