@@ -163,6 +163,20 @@ def build_icons():
 
 
 # ---------------------------------------------------------------- 组装目录
+def copy_text(src, dst):
+    """复制文本文件并统一成 LF 换行。
+
+    Windows 上 git core.autocrlf / .gitattributes 会让工作区的文件是 CRLF，
+    而 CI 检出的是 LF。若不统一，同样的源码在两边打出的包字节不同，
+    SHA256 对不上，可复现构建就失效了。
+    """
+    with open(src, "rb") as f:
+        raw = f.read()
+    raw = raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    with open(dst, "wb") as f:
+        f.write(raw)
+
+
 def assemble(target, manifest_name):
     out = os.path.join(DIST, target)
     if os.path.isdir(out):
@@ -170,9 +184,9 @@ def assemble(target, manifest_name):
     os.makedirs(out)
 
     for f in COPY_FILES:
-        shutil.copy2(os.path.join(SRC, f), os.path.join(out, f))
+        copy_text(os.path.join(SRC, f), os.path.join(out, f))
     shutil.copytree(os.path.join(SRC, "icons"), os.path.join(out, "icons"))
-    shutil.copy2(os.path.join(SRC, manifest_name), os.path.join(out, "manifest.json"))
+    copy_text(os.path.join(SRC, manifest_name), os.path.join(out, "manifest.json"))
     print("  %-8s -> %s" % (target, os.path.relpath(out, ROOT)))
     return out
 
@@ -194,6 +208,10 @@ def zip_dir(folder, zip_path):
                 arc = os.path.relpath(full, folder).replace("\\", "/")
                 info = zipfile.ZipInfo(arc, date_time=fixed_time)
                 info.compress_type = zipfile.ZIP_DEFLATED
+                # python -m zipfile 在 Windows 上把 create_system 记为 0(MS-DOS)，
+                # 在 Linux 上记为 3(Unix)，这一个字节就会让两边产物哈希不同。
+                # 统一成 Unix，配合下面的 0644 权限位，跨平台产出相同字节。
+                info.create_system = 3
                 info.external_attr = 0o644 << 16
                 with open(full, "rb") as fh:
                     z.writestr(info, fh.read())
