@@ -1,0 +1,134 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的 tag（例如 v1.0.2），必须与 manifest 里的 version 一致"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+# 同一版本不并发发布，避免附件互相覆盖
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: 构建并发布
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ---------------------------------------------------------------- 版本
+      - name: 确定版本号
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          VERSION="${TAG#v}"
+
+          # 只接受 x.y.z，防止 tag 名写错导致产物文件名怪异
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::版本号格式不合法：'$VERSION'，应形如 1.0.2"
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "本次发布：$TAG"
+
+      # tag 是「要发什么」，manifest 是「代码里是什么」。两者不一致说明
+      # 改完代码忘了改版本号，此时发出去就是错版本，必须拦住。
+      - name: 校验 manifest 版本与 tag 一致
+        shell: bash
+        run: |
+          set -euo pipefail
+          V="${{ steps.ver.outputs.version }}"
+          for f in src/manifest.chrome.json src/manifest.firefox.json; do
+            M=$(python -c "import json,sys;print(json.load(open(sys.argv[1],encoding='utf-8'))['version'])" "$f")
+            echo "$f -> $M"
+            if [ "$M" != "$V" ]; then
+              echo "::error file=$f::manifest 版本是 $M，但 tag 是 v$V。请先把两个 manifest 的 version 都改成 $V 再重新打 tag。"
+              exit 1
+            fi
+          done
+          echo "版本一致：$V"
+
+      # ---------------------------------------------------------------- 构建
+      - name: 构建扩展包
+        run: python build.py "${{ steps.ver.outputs.version }}"
+
+      - name: 校验产物结构与版本
+        run: python verify_dist.py "${{ steps.ver.outputs.version }}"
+
+      - name: 生成 SHA256 校验和
+        working-directory: dist
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum page-translator-chrome-v*.zip page-translator-firefox-v*.xpi > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      # ---------------------------------------------------------------- 发布
+      - name: 发布到 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG 已存在，仅覆盖附件"
+          else
+            # 首次发布：--generate-notes 用提交记录自动生成变更说明
+            gh release create "$TAG" \
+              --title "v$VERSION" \
+              --generate-notes
+          fi
+
+          gh release upload "$TAG" \
+            "dist/page-translator-chrome-v$VERSION.zip" \
+            "dist/page-translator-firefox-v$VERSION.xpi" \
+            "dist/SHA256SUMS.txt" \
+            --clobber
+
+          echo "完成：${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG"
+
+      - name: 输出摘要
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### 发布结果"
+            echo ""
+            echo "- 版本：\`${{ steps.ver.outputs.tag }}\`"
+            echo "- 状态：${{ job.status }}"
+            echo ""
+            if [ -f dist/SHA256SUMS.txt ]; then
+              echo '```'
+              cat dist/SHA256SUMS.txt
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

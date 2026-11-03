@@ -14,13 +14,43 @@ import math
 import os
 import shutil
 import struct
+import sys
 import zipfile
 import zlib
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "src")
 DIST = os.path.join(ROOT, "dist")
-VERSION = "1.0.1"
+
+DEFAULT_VERSION = "1.0.1"
+
+
+def manifest_version():
+    """从 src/manifest.chrome.json 读版本号 —— 版本的唯一真相源。"""
+    import json
+    p = os.path.join(SRC, "manifest.chrome.json")
+    try:
+        with open(p, encoding="utf-8") as fh:
+            return json.load(fh)["version"]
+    except Exception:
+        return None
+
+
+def resolve_version():
+    """版本来源优先级：命令行参数 > 环境变量 PT_VERSION > manifest > 内置默认值。
+
+    - 本地 `python build.py` 行为不变，自动跟随 manifest 里的版本
+    - 改版只需改 manifest 一处，不必再同步改这个文件
+    - CI 可用 `python build.py 1.0.2` 或 `PT_VERSION=1.0.2 python build.py` 覆盖
+    """
+    candidates = [sys.argv[1] if len(sys.argv) > 1 else None, os.environ.get("PT_VERSION")]
+    for raw in candidates:
+        if raw:
+            return raw.strip().lstrip("vV")
+    return manifest_version() or DEFAULT_VERSION
+
+
+VERSION = resolve_version()
 
 COPY_FILES = ["shared.js", "background.js", "content.js", "popup.html", "popup.css", "popup.js"]
 
