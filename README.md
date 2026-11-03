@@ -26,7 +26,7 @@ An open-source browser extension that translates the whole page in place — no 
 只需要 Python 3（**零第三方依赖**，标准库即可）：
 
 ```bash
-git clone https://github.com/miaosong155-ui/page-translator.git
+git clone https://github.com/<你的用户名>/page-translator.git
 cd page-translator
 python build.py
 ```
@@ -129,7 +129,38 @@ page-translator/
 
 ---
 
-## 七、想换个引擎？
+## 七、发版
+
+版本号只有一处真相源：`src/manifest.chrome.json` 与 `src/manifest.firefox.json` 里的 `version`。`build.py` 直接读它，不需要再改别的地方。
+
+发一个新版本：
+
+```bash
+# 1. 把两个 manifest 的 version 都改成新版本，比如 1.0.2
+# 2. 本地先验一遍
+python build.py && python verify_dist.py
+
+# 3. 提交并打 tag
+git add -A && git commit -m "release: v1.0.2"
+git tag v1.0.2
+git push && git push --tags
+```
+
+推上 tag 之后，GitHub Actions 会自动完成：
+
+1. **校验 tag 与 manifest 版本一致** —— 不一致直接失败，避免发出错版本的包
+2. 构建 Chrome / Firefox 两个包
+3. **校验产物结构** —— 文件是否齐全、版本号是否正确、MV3 与 MV2 有没有装反
+4. 生成 `SHA256SUMS.txt`
+5. 创建 Release 并上传三个文件
+
+也可以在 Actions 页面手动触发（Run workflow），填入 tag 补发或重发。
+
+构建是**可复现**的：同一份源码在本地和 CI 产出的包，SHA256 完全相同 —— 即使是 Windows + Python 3.13 对 Ubuntu + Python 3.12。所以 `SHA256SUMS.txt` 可以用来校验下载的文件有没有被改动。
+
+---
+
+## 八、想换个引擎？
 
 `src/background.js` 里加一个函数，再注册进 `ENGINES` 就行：
 
@@ -146,7 +177,7 @@ const ENGINES = { tencent: viaTencent, mymemory: viaMyMemory, google: viaGoogle,
 
 ---
 
-## 八、测试
+## 九、测试
 
 `test/` 下是**真链路**测试：真浏览器 + 真接口，不是 mock。
 
@@ -171,12 +202,12 @@ node test/diag.mjs         # 打印扩展上下文里 browser / chrome 的真实
 
 ---
 
-## 九、免责声明
+## 十、免责声明
 
 - 腾讯交互翻译、MyMemory 均为第三方服务，本扩展调用的是其**面向网页的公开接口**，并非官方开放 API，接口随时可能变更或失效；由此产生的可用性问题不作为 bug 承诺修复，但欢迎提 issue。
 - 请勿用于翻译违反当地法律法规的内容，也不要用脚本高频调用这些接口。
 - 本项目与腾讯、Google、MyMemory 均无隶属关系。
 
-## 十、License
+## 十一、License
 
 [MIT](LICENSE)
